@@ -13,6 +13,9 @@ from html import escape
 import subprocess
 import webbrowser
 import math
+from pathlib import Path
+
+from workspace_files import WorkspaceFiles
 
 # --- PySide6 GUI Imports ---
 from PySide6.QtWidgets import (QApplication, QMainWindow, QTextEdit, QLabel,
@@ -54,6 +57,10 @@ MODEL = "gemini-live-2.5-flash-preview"
 VOICE_ID = 'pFZP5JQG7iQjIQuC4Bku'
 DEFAULT_MODE = "none"  # Options: "camera", "screen", "none"
 MAX_OUTPUT_TOKENS = 100
+PROJECT_ROOT = Path(__file__).resolve().parent
+WORKSPACE_ROOT = Path(os.getenv("ADA_WORKSPACE", PROJECT_ROOT / "ada_workspace"))
+if not WORKSPACE_ROOT.is_absolute():
+    WORKSPACE_ROOT = PROJECT_ROOT / WORKSPACE_ROOT
 
 # --- Initialize Clients ---
 pya = pyaudio.PyAudio()
@@ -173,10 +180,11 @@ class AI_Core(QObject):
         self.video_mode = video_mode
         self.is_running = True
         self.client = genai.Client(api_key=GEMINI_API_KEY)
+        self.workspace_files = WorkspaceFiles(WORKSPACE_ROOT)
 
         create_folder = {
             "name": "create_folder",
-            "description": "Creates a new folder at the specified path relative to the script's root directory.",
+            "description": "Creates a new folder at a relative path inside the ADA workspace.",
             "parameters": {
                 "type": "OBJECT",
                 "properties": { "folder_path": { "type": "STRING", "description": "The path for the new folder (e.g., 'new_project/assets')."}},
@@ -186,7 +194,7 @@ class AI_Core(QObject):
 
         create_file = {
             "name": "create_file",
-            "description": "Creates a new file with specified content at a given path.",
+            "description": "Creates a new text file at a relative path inside the ADA workspace.",
             "parameters": {
                 "type": "OBJECT",
                 "properties": {
@@ -199,7 +207,7 @@ class AI_Core(QObject):
 
         edit_file = {
             "name": "edit_file",
-            "description": "Appends content to an existing file at a specified path.",
+            "description": "Appends content to an existing text file inside the ADA workspace.",
             "parameters": {
                 "type": "OBJECT",
                 "properties": {
@@ -212,7 +220,7 @@ class AI_Core(QObject):
 
         list_files = {
             "name": "list_files",
-            "description": "Lists all files and directories within a specified folder. Defaults to the current directory if no path is provided.",
+            "description": "Lists files and folders inside the ADA workspace. Defaults to the workspace root.",
             "parameters": {
                 "type": "OBJECT",
                 "properties": {
@@ -223,7 +231,7 @@ class AI_Core(QObject):
 
         read_file = {
             "name": "read_file",
-            "description": "Reads the entire content of a specified file.",
+            "description": "Reads a text file at a relative path inside the ADA workspace.",
             "parameters": {
                 "type": "OBJECT",
                 "properties": {
@@ -288,44 +296,27 @@ class AI_Core(QObject):
 
     def _create_folder(self, folder_path):
         try:
-            if not folder_path or not isinstance(folder_path, str): return {"status": "error", "message": "Invalid folder path provided."}
-            if os.path.exists(folder_path): return {"status": "skipped", "message": f"The folder '{folder_path}' already exists."}
-            os.makedirs(folder_path)
-            return {"status": "success", "message": f"Successfully created the folder at '{folder_path}'."}
+            return self.workspace_files.create_folder(folder_path)
         except Exception as e: return {"status": "error", "message": f"An error occurred: {str(e)}"}
 
     def _create_file(self, file_path, content):
         try:
-            if not file_path or not isinstance(file_path, str): return {"status": "error", "message": "Invalid file path provided."}
-            if os.path.exists(file_path): return {"status": "skipped", "message": f"The file '{file_path}' already exists."}
-            with open(file_path, 'w') as f: f.write(content)
-            return {"status": "success", "message": f"Successfully created the file at '{file_path}'."}
+            return self.workspace_files.create_file(file_path, content)
         except Exception as e: return {"status": "error", "message": f"An error occurred while creating the file: {str(e)}"}
 
     def _edit_file(self, file_path, content):
         try:
-            if not file_path or not isinstance(file_path, str): return {"status": "error", "message": "Invalid file path provided."}
-            if not os.path.exists(file_path): return {"status": "error", "message": f"The file '{file_path}' does not exist. Please create it first."}
-            with open(file_path, 'a') as f: f.write(f"\n{content}")
-            return {"status": "success", "message": f"Successfully appended content to the file at '{file_path}'."}
+            return self.workspace_files.edit_file(file_path, content)
         except Exception as e: return {"status": "error", "message": f"An error occurred while editing the file: {str(e)}"}
 
     def _list_files(self, directory_path):
         try:
-            path_to_list = directory_path if directory_path else '.'
-            if not isinstance(path_to_list, str): return {"status": "error", "message": "Invalid directory path provided."}
-            if not os.path.isdir(path_to_list): return {"status": "error", "message": f"The path '{path_to_list}' is not a valid directory."}
-            files = os.listdir(path_to_list)
-            return {"status": "success", "message": f"Found {len(files)} items in '{path_to_list}'.", "files": files, "directory_path": path_to_list}
+            return self.workspace_files.list_files(directory_path)
         except Exception as e: return {"status": "error", "message": f"An error occurred: {str(e)}"}
 
     def _read_file(self, file_path):
         try:
-            if not file_path or not isinstance(file_path, str): return {"status": "error", "message": "Invalid file path provided."}
-            if not os.path.exists(file_path): return {"status": "error", "message": f"The file '{file_path}' does not exist."}
-            if not os.path.isfile(file_path): return {"status": "error", "message": f"The path '{file_path}' is not a file."}
-            with open(file_path, 'r') as f: content = f.read()
-            return {"status": "success", "message": f"Successfully read the file '{file_path}'.", "content": content}
+            return self.workspace_files.read_file(file_path)
         except Exception as e: return {"status": "error", "message": f"An error occurred while reading the file: {str(e)}"}
 
     def _open_application(self, application_name):
@@ -884,5 +875,3 @@ if __name__ == "__main__":
     finally:
         pya.terminate()
         print(">>> [INFO] Application terminated.")
-
-
