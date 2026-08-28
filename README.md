@@ -89,6 +89,13 @@ GEMINI_API_KEY="YOUR_GEMINI_API_KEY_HERE"
 ELEVENLABS_API_KEY="YOUR_ELEVENLABS_API_KEY_HERE"
 ```
 
+By default, A.D.A.'s file tools can only access the `ada_workspace` folder. To
+use a different workspace, set `ADA_WORKSPACE` in `.env`:
+
+```
+ADA_WORKSPACE="path/to/your/workspace"
+```
+
 > **Important**: Do not share or commit your .env file to GitHub. The project's .gitignore file is configured to ignore it.
 
 Usage
